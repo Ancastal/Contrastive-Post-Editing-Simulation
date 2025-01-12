@@ -30,8 +30,7 @@
 1. Train the CPO model on the two datasets (original and original+synthetic).
 2. Run inference on the datasets.
 3. Evaluate results using metrics: BLEU, ChrF, TER, COMET-22
-4. 
-Obtain benchmark scores for comparison.
+4. Obtain benchmark scores for comparison.
 
 ---
 
