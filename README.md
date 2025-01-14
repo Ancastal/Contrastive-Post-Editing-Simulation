@@ -2,11 +2,10 @@
 
 This repository contains the code for the C3PO project, which is a project to train a Llama model with Contrastive Preference Optimization (CPO).
 It is divided into three main modules:
-- Translation Module: Translate English to Korean using GPT-4 or Llama
-- Triplet Generation Module: Generate triplets from translation pairs using COMET-KIWI for quality evaluation
-- CPO Training Module: Train the Llama model with CPO using the generated triplets
+- **Translation Module**: Translate English to Korean using GPT-4 or Llama
+- **Triplet Generation Module**: Generate triplets from translation pairs using COMET-KIWI for quality evaluation
+- **CPO Training Module**: Train the Llama model with CPO using the generated triplets
 
-## Setup
 
 1. Install dependencies:
 ```bash
