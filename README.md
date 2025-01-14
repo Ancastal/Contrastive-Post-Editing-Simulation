@@ -7,12 +7,12 @@ It is divided into three main modules:
 - **CPO Training Module**: Train the Llama model with CPO using the generated triplets
 
 
-1. Install dependencies:
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Add your Hugging Face API and OpenAI API token to the `.env` file:
+Add your Hugging Face API and OpenAI API token to the `.env` file:
 ```bash
 HUGGINGFACE_TOKEN=your_token_here
 OPENAI_API_KEY=your_api_key_here
