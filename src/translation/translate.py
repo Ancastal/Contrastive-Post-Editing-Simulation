@@ -55,16 +55,8 @@ async def main_async():
                       help='Model to use for translation (gpt4 or llama)')
     parser.add_argument('--llama_model', type=str, 
                       default='meta-llama/Llama-3.2-1B-Instruct',
-                      choices=[
-                          'meta-llama/Llama-3.2-1B-Instruct',
-                          'meta-llama/Llama-3.2-7B-Instruct',
-                          'meta-llama/Llama-3.2-13B-Instruct',
-                          'meta-llama/Llama-3.2-70B-Instruct',
-                          'custom'  # Allow custom model path
-                      ],
-                      help='Llama model to use (only used if --model=llama). Use "custom" for custom model path')
-    parser.add_argument('--custom_llama_path', type=str,
-                      help='Custom path to Llama model (only used if --llama_model=custom)')
+                      help='Llama model to use (only used if --model=llama). Can be one of the default models: '
+                           'meta-llama/Llama-3.2-[1B,7B,13B,70B]-Instruct or a custom model path')
 
     args = parser.parse_args()
     
@@ -77,10 +69,7 @@ async def main_async():
             raise ValueError("OPENAI_API_KEY not found in .env file")
         translator = GPT4Translator(api_key=api_key, temperature=args.temperature)
     else:  # llama
-        model_path = args.custom_llama_path if args.llama_model == 'custom' else args.llama_model
-        if args.llama_model == 'custom' and not model_path:
-            raise ValueError("--custom_llama_path must be provided when using --llama_model=custom")
-        translator = LlamaTranslator(model_name=model_path, temperature=args.temperature)
+        translator = LlamaTranslator(model_name=args.llama_model, temperature=args.temperature)
     
     # Initialize manager
     print(f"Using translator: {translator}")
