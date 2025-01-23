@@ -1,11 +1,17 @@
 """Llama-based English to Korean translator module using HuggingFace transformers."""
 
 import torch
+import warnings
+import logging
 from typing import List, Optional, Union, Dict
 from transformers import pipeline, AutoTokenizer
 from vllm import LLM, SamplingParams
 
 from ..utils.few_shots import FewShotGenerator
+
+# Configure logging
+logging.getLogger("vllm").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 class LlamaTranslator:
     """A class to handle English to Korean translation using Llama model."""
@@ -44,17 +50,23 @@ class LlamaTranslator:
               f"spec-decoding: {self.use_ngram_spec})")
         
         if use_vllm:
-            TORCH_LOGS="+dynamo"
-            TORCHDYNAMO_VERBOSE=1
-            import torch._dynamo
-            torch._dynamo.config.suppress_errors = True
-            self.llm = LLM(
-                model=model_name,
-                tensor_parallel_size=1 if self.use_ngram_spec else None,
-                speculative_model="[ngram]" if self.use_ngram_spec else None,
-                num_speculative_tokens=5 if self.use_ngram_spec else None,
-                ngram_prompt_lookup_max=4 if self.use_ngram_spec else None,
-            )
+            if self.use_ngram_spec:
+                TORCH_LOGS="+dynamo"
+                TORCHDYNAMO_VERBOSE=1
+                import torch._dynamo
+                torch._dynamo.config.suppress_errors = True
+                self.llm = LLM(
+                    model=model_name,
+                    tensor_parallel_size=1 if self.use_ngram_spec else None,
+                    speculative_model="[ngram]" if self.use_ngram_spec else None,
+                    num_speculative_tokens=5 if self.use_ngram_spec else None,
+                    ngram_prompt_lookup_max=4 if self.use_ngram_spec else None,
+                )
+            else:
+                TORCHDYNAMO_VERBOSE=0
+                self.llm = LLM(
+                    model=model_name,
+                )
             self.sampling_params = SamplingParams(
                 temperature=temperature,
                 max_tokens=256,

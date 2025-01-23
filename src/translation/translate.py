@@ -3,6 +3,8 @@
 import argparse
 import os
 import asyncio
+import warnings
+
 from typing import List, Tuple
 from dotenv import load_dotenv
 from rich.console import Console
@@ -19,6 +21,8 @@ from .llama_translator import LlamaTranslator
 
 # Initialize Rich console
 console = Console()
+
+warnings.simplefilter("ignore")
 
 def load_source_texts(
     input_file: str,
