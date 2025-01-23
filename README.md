@@ -61,9 +61,9 @@ python -m src.translation.translate \
 - `--llama_model`: Llama model to use (only when --model=llama)
 
 #### vLLM Arguments (**Experimental**)
-- `--use_vllm`: Use vLLM for faster batched inference (only for Llama)
-- `--use_ngram_spec`: Enable n-gram speculative decoding (only when using vLLM)
-- `--few_shots`: Enable few-shot prompting with similar examples
+- `--use_vllm`: Use [vLLM](https://vllm.ai/) for faster batched inference (only for Llama)
+- `--use_ngram_spec`: Enable [n-gram speculative decoding](https://docs.vllm.ai/en/latest/features/spec_decode.html) (only when using vLLM)
+- `--few_shots`: Enable [few-shot prompting](https://arxiv.org/abs/2005.14165) with similar examples
 
 #### Few-Shot Arguments (**Experimental**)
 - `--few_shots`: Enable few-shot prompting with similar examples
