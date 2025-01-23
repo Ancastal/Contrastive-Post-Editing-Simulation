@@ -16,7 +16,8 @@ class LlamaTranslator:
                  use_few_shots: bool = False,
                  few_shot_examples: Optional[str] = None,
                  few_shot_targets: Optional[str] = None,
-                 num_shots: int = 3):
+                 num_shots: int = 3,
+                 use_ngram_spec: bool = False):
         """Initialize the translator with Llama model and parameters.
         
         Args:
@@ -27,20 +28,33 @@ class LlamaTranslator:
             few_shot_examples: Path to file containing example source texts
             few_shot_targets: Path to file containing example target texts
             num_shots: Number of few-shot examples to use per query
+            use_ngram_spec: Whether to use n-gram speculative decoding (only for vLLM)
         """
         self.model_name = model_name
         self.is_instruct_model = "instruct" in model_name.lower()
         self.temperature = temperature
         self.use_vllm = use_vllm
         self.use_few_shots = use_few_shots
+        self.use_ngram_spec = use_ngram_spec and use_vllm  # Only enable if vLLM is used
         
         print(f"Initializing LlamaTranslator with model: {model_name} "
               f"(type: {'instruct' if self.is_instruct_model else 'base'}, "
               f"backend: {'vLLM' if use_vllm else 'transformers'}, "
-              f"few-shot: {use_few_shots})")
+              f"few-shot: {use_few_shots}, "
+              f"spec-decoding: {self.use_ngram_spec})")
         
         if use_vllm:
-            self.llm = LLM(model=model_name)
+            TORCH_LOGS="+dynamo"
+            TORCHDYNAMO_VERBOSE=1
+            import torch._dynamo
+            torch._dynamo.config.suppress_errors = True
+            self.llm = LLM(
+                model=model_name,
+                tensor_parallel_size=1 if self.use_ngram_spec else None,
+                speculative_model="[ngram]" if self.use_ngram_spec else None,
+                num_speculative_tokens=5 if self.use_ngram_spec else None,
+                ngram_prompt_lookup_max=4 if self.use_ngram_spec else None,
+            )
             self.sampling_params = SamplingParams(
                 temperature=temperature,
                 max_tokens=256,

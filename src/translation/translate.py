@@ -95,6 +95,8 @@ async def main_async():
                       help='Llama model to use (only used if --model=llama)')
     parser.add_argument('--use_vllm', action='store_true',
                       help='Use vLLM for faster batched inference (only used if --model=llama)')
+    parser.add_argument('--use_ngram_spec', action='store_true',
+                      help='Use n-gram speculative decoding with vLLM (only used if --use_vllm=True)')
     
     # Add few-shot arguments
     parser.add_argument('--few_shots', action='store_true',
@@ -115,6 +117,13 @@ async def main_async():
         f"[cyan]Batch Size:[/cyan] {args.batch_size}",
         f"[cyan]Temperature:[/cyan] {args.temperature}"
     ]
+    
+    if args.use_vllm and args.use_ngram_spec:
+        config_info.extend([
+            "[cyan]N-gram Speculative Decoding:[/cyan] Enabled",
+            "[cyan]Num Speculative Tokens:[/cyan] 5",
+            "[cyan]Max N-gram Length:[/cyan] 4"
+        ])
     
     if args.few_shots:
         config_info.extend([
@@ -150,7 +159,8 @@ async def main_async():
                 use_few_shots=args.few_shots,
                 few_shot_examples=args.few_shot_examples,
                 few_shot_targets=args.few_shot_targets,
-                num_shots=args.num_shots
+                num_shots=args.num_shots,
+                use_ngram_spec=args.use_ngram_spec
             )
     
     # Initialize manager
