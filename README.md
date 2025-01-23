@@ -22,7 +22,9 @@ OPENAI_API_KEY=your_api_key_here
 
 The translation system supports two main models:
 - GPT-4 (via OpenAI API)
-- Llama (various sizes: 1B, 7B, 13B, 70B)
+- Llama (any checkpoint from Hugging Face)
+
+### Basic Usage
 
 1. Using GPT-4 (default):
 ```bash
@@ -46,18 +48,9 @@ python -m src.translation.translate \
     --temperature 0.3
 ```
 
-3. Using custom Llama model:
-```bash
-python -m src.translation.translate \
-    --model llama \
-    --llama_model custom \
-    --custom_llama_path /path/to/your/model \
-    --input assets/train/train_en-ko.en \
-    --output assets/train/train_en-ko.llama.ko
-```
-
 ### Command Line Arguments
 
+#### Basic Arguments
 - `--input`: Path to input English file (default: 'assets/train/train_en-ko.en')
 - `--output`: Path to output Korean translations file
 - `--batch_size`: Batch size for concurrent API calls (default: 5)
@@ -66,7 +59,13 @@ python -m src.translation.translate \
 - `--temperature`: Temperature for model generation (default: 0.3)
 - `--model`: Model to use for translation ('gpt4' or 'llama')
 - `--llama_model`: Llama model to use (only when --model=llama)
-- `--custom_llama_path`: Custom path to Llama model (only when --llama_model=custom)
+- `--use_vllm`: Use vLLM for faster batched inference (only for Llama)
+
+#### Few-Shot Arguments
+- `--few_shots`: Enable few-shot prompting with similar examples
+- `--few_shot_examples`: Path to source texts file for few-shot examples
+- `--few_shot_targets`: Path to target texts file for few-shot examples
+- `--num_shots`: Number of few-shot examples to use per query (default: 3)
 
 #### Notes
 
@@ -74,6 +73,7 @@ python -m src.translation.translate \
 - Failed translations are automatically retried
 - Progress is saved after each batch
 - Interruption-safe with automatic progress saving
+- Few-shot examples are cached in `cache/few_shots/` for faster subsequent runs
 
 ## Triplet Generation
 
