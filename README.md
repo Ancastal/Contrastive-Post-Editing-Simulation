@@ -66,7 +66,6 @@ python -m src.translation.translate \
 - `--temperature`: Temperature for model generation (default: 0.3)
 - `--model`: Model to use for translation ('gpt4' or 'llama')
 - `--llama_model`: Llama model to use (only when --model=llama)
-- `--custom_llama_path`: Custom path to Llama model (only when --llama_model=custom)
 
 #### Notes
 
