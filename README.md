@@ -81,16 +81,16 @@ python -m src.translation.translate \
 
 ## Triplet Generation
 
-The system includes functionality to generate training triplets from translation pairs using COMET-KIWI for quality evaluation.
+The system includes functionality to generate training triplets from translation pairs using COMET-KIWI for quality evaluation. It supports comparing multiple machine translations against the reference translation.
 
 ### Basic Usage
 
-Generate triplets from translation pairs:
+Generate triplets from translation pairs with multiple machine translations:
 ```bash
 python -m src.triplets.generate \
     --en_file assets/train/train_en-ko.en \
     --ko_file assets/train/train_en-ko.ko \
-    --ko_gpt4_file assets/train/train_en-ko.gpt4.ko \
+    --ko_mt_files assets/train/train_en-ko.gpt4.ko assets/train/train_en-ko.llama.ko \
     --output train_en-ko_triplets.jsonl \
     --batch_size 8
 ```
@@ -99,7 +99,7 @@ python -m src.triplets.generate \
 
 - `--en_file`: Path to English source file (default: 'assets/train/train_en-ko.en')
 - `--ko_file`: Path to Korean reference translation file (default: 'assets/train/train_en-ko.ko')
-- `--ko_gpt4_file`: Path to Korean GPT-4 translation file (required)
+- `--ko_mt_files`: Paths to Korean machine translation files (required, accepts multiple files)
 - `--output`: Output file path for the generated triplets (default: 'train_en-ko_triplets.jsonl')
 - `--batch_size`: Batch size for COMET-KIWI evaluation (default: 8)
 - `--max_samples`: Maximum number of samples to process (optional)
@@ -115,7 +115,15 @@ The triplets are saved in JSONL format with the following structure:
 }
 ```
 
-The quality comparison between translations is determined by COMET-KIWI scores, where the translation with the higher score becomes the "chosen" translation and the lower score becomes the "rejected" translation.
+The quality comparison between translations is determined by COMET-KIWI scores and works as follows:
+1. If the best machine translation has a higher score than the reference:
+   - It becomes the "chosen" translation
+   - If the second-best machine translation also has a higher score than the reference:
+     - It becomes the "rejected" translation
+   - Otherwise, the reference becomes the "rejected" translation
+2. If no machine translation is better than the reference:
+   - The reference becomes the "chosen" translation
+   - The best machine translation becomes the "rejected" translation
 
 ## CPO Training
 
