@@ -31,8 +31,8 @@ def main():
                       help='Path to English source file')
     parser.add_argument('--ko_file', type=str, default='assets/train/train_en-ko.ko',
                       help='Path to Korean reference translation file')
-    parser.add_argument('--ko_gpt4_file', type=str, required=True,
-                      help='Path to Korean GPT-4 translation file')
+    parser.add_argument('--ko_mt_files', type=str, nargs='+', required=True,
+                      help='Paths to Korean machine translation files')
     parser.add_argument('--output', type=str, default='train_en-ko_triplets.jsonl',
                       help='Output file path for the generated triplets')
     parser.add_argument('--batch_size', type=int, default=8,
@@ -66,7 +66,7 @@ def main():
     pairs = load_translation_dataset(
         args.en_file,
         args.ko_file,
-        args.ko_gpt4_file,
+        args.ko_mt_files,
         args.max_samples
     )
     print(f"Processing {len(pairs)} translation pairs...")

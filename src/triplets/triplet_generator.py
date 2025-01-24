@@ -8,10 +8,10 @@ from comet import download_model, load_from_checkpoint
 
 @dataclass
 class TranslationPair:
-    """Data class representing a translation pair with source and two translations."""
+    """Data class representing a translation pair with source, reference and multiple machine translations."""
     source: str
     reference: str
-    gpt4: str
+    machine_translations: List[str]
 
 @dataclass
 class Triplet:
@@ -35,24 +35,22 @@ class CometKiwiEvaluator:
     def evaluate_batch(
         self,
         src_texts: List[str],
-        hyp1_texts: List[str],
-        hyp2_texts: List[str]
+        translations: List[List[str]]
     ) -> List[List[float]]:
         """Evaluate a batch of translations using COMET-KIWI.
         
         Args:
             src_texts: List of source texts
-            hyp1_texts: List of first hypothesis translations
-            hyp2_texts: List of second hypothesis translations
+            translations: List of lists of translations to evaluate
             
         Returns:
-            List of scores for each translation pair
+            List of scores for each translation
         """
         samples = []
-        for src, hyp1, hyp2 in zip(src_texts, hyp1_texts, hyp2_texts):
+        for src, trans in zip(src_texts, translations):
             samples.append({
                 "src": src,
-                "mt": [hyp1, hyp2]
+                "mt": trans
             })
         
         return self.model.predict(samples, batch_size=len(samples), progress_bar=False)
@@ -87,27 +85,41 @@ class TripletGenerator:
             
             # Prepare batch data
             src_texts = [pair.source for pair in batch]
-            ref_texts = [pair.reference for pair in batch]
-            gpt4_texts = [pair.gpt4 for pair in batch]
+            all_translations = []
+            for pair in batch:
+                translations = [pair.reference] + pair.machine_translations
+                all_translations.append(translations)
             
             # Get quality scores
-            scores = self.evaluator.evaluate_batch(src_texts, ref_texts, gpt4_texts)
+            scores = self.evaluator.evaluate_batch(src_texts, all_translations)
             
             # Create triplets based on scores
-            for pair, score in zip(batch, scores):
-                # If reference translation has higher score, it becomes chosen
-                if score[0] > score[1]:
-                    triplet = Triplet(
-                        prompt=pair.source,
-                        chosen=pair.reference,
-                        rejected=pair.gpt4
-                    )
+            for pair, score_list in zip(batch, scores):
+                ref_score = score_list[0]  # First score is for reference
+                mt_scores = score_list[1:]  # Rest are machine translations
+                
+                # Get indices of top 2 machine translations
+                mt_indices = sorted(range(len(mt_scores)), key=lambda k: mt_scores[k], reverse=True)
+                best_mt_score = mt_scores[mt_indices[0]]
+                
+                if best_mt_score > ref_score:
+                    # If best MT is better than reference
+                    chosen = pair.machine_translations[mt_indices[0]]
+                    if len(mt_indices) > 1 and mt_scores[mt_indices[1]] > ref_score:
+                        # If second best MT is also better than reference
+                        rejected = pair.machine_translations[mt_indices[1]]
+                    else:
+                        rejected = pair.reference
                 else:
-                    triplet = Triplet(
-                        prompt=pair.source,
-                        chosen=pair.gpt4,
-                        rejected=pair.reference
-                    )
+                    # If reference is better than all MTs
+                    chosen = pair.reference
+                    rejected = pair.machine_translations[mt_indices[0]]  # Best MT becomes rejected
+                
+                triplet = Triplet(
+                    prompt=pair.source,
+                    chosen=chosen,
+                    rejected=rejected
+                )
                 triplets.append(triplet)
         
         return triplets
@@ -115,7 +127,7 @@ class TripletGenerator:
 def load_translation_dataset(
     en_file: str,
     ko_file: str,
-    ko_gpt4_file: str,
+    ko_mt_files: List[str],
     max_samples: Optional[int] = None
 ) -> List[TranslationPair]:
     """Load the English-Korean translation dataset from files.
@@ -123,29 +135,38 @@ def load_translation_dataset(
     Args:
         en_file: Path to English source file
         ko_file: Path to Korean reference translation file
-        ko_gpt4_file: Path to Korean GPT-4 translation file
+        ko_mt_files: List of paths to Korean machine translation files
         max_samples: Maximum number of samples to load
         
     Returns:
         List of translation pairs
     """
     with open(en_file, 'r', encoding='utf-8') as f_en, \
-         open(ko_file, 'r', encoding='utf-8') as f_ko, \
-         open(ko_gpt4_file, 'r', encoding='utf-8') as f_ko_gpt4:
-        
+         open(ko_file, 'r', encoding='utf-8') as f_ko:
         en_lines = [line.strip() for line in f_en]
         ko_lines = [line.strip() for line in f_ko]
-        ko_gpt4_lines = [line.strip() for line in f_ko_gpt4]
+        
+        # Read all machine translation files
+        mt_lines = []
+        for mt_file in ko_mt_files:
+            with open(mt_file, 'r', encoding='utf-8') as f_mt:
+                mt_lines.append([line.strip() for line in f_mt])
         
         if max_samples is not None:
             en_lines = en_lines[:max_samples]
             ko_lines = ko_lines[:max_samples]
-            ko_gpt4_lines = ko_gpt4_lines[:max_samples]
+            mt_lines = [lines[:max_samples] for lines in mt_lines]
         
-        assert len(en_lines) == len(ko_lines) == len(ko_gpt4_lines), \
+        # Verify all files have same number of lines
+        line_counts = [len(en_lines), len(ko_lines)] + [len(lines) for lines in mt_lines]
+        assert all(count == line_counts[0] for count in line_counts), \
             "All files must have the same number of lines"
         
         return [
-            TranslationPair(source=en, reference=ko, gpt4=ko_gpt4)
-            for en, ko, ko_gpt4 in zip(en_lines, ko_lines, ko_gpt4_lines)
+            TranslationPair(
+                source=en,
+                reference=ko,
+                machine_translations=[mt[i] for mt in mt_lines]
+            )
+            for i, (en, ko) in enumerate(zip(en_lines, ko_lines))
         ] 
