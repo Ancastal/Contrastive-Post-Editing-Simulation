@@ -23,7 +23,7 @@ class Triplet:
 class CometKiwiEvaluator:
     """Class for evaluating translations using COMET-KIWI model."""
     
-    def __init__(self, model_name: str = "Unbabel/wmt22-comet-da"):
+    def __init__(self, model_name: str = "Unbabel/wmt22-cometkiwi-da"):
         """Initialize the COMET-KIWI evaluator.
         
         Args:
