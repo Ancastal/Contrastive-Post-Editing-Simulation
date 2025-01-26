@@ -3,6 +3,7 @@
 import torch
 import warnings
 import logging
+import os
 from typing import List, Optional, Union, Dict
 from transformers import pipeline, AutoTokenizer
 from vllm import LLM, SamplingParams
@@ -51,19 +52,20 @@ class LlamaTranslator:
         
         if use_vllm:
             if self.use_ngram_spec:
-                TORCH_LOGS="+dynamo"
-                TORCHDYNAMO_VERBOSE=1
-                import torch._dynamo
+                # Set environment variables for torch
+                os.environ["TORCH_LOGS"] = "+dynamo"
+                os.environ["TORCHDYNAMO_VERBOSE"] = "1"
+                
                 torch._dynamo.config.suppress_errors = True
                 self.llm = LLM(
                     model=model_name,
-                    tensor_parallel_size=1 if self.use_ngram_spec else None,
-                    speculative_model="[ngram]" if self.use_ngram_spec else None,
-                    num_speculative_tokens=5 if self.use_ngram_spec else None,
-                    ngram_prompt_lookup_max=4 if self.use_ngram_spec else None,
+                    tensor_parallel_size=1,
+                    speculative_model="[ngram]",
+                    num_speculative_tokens=5,
+                    ngram_prompt_lookup_max=4,
                 )
             else:
-                TORCHDYNAMO_VERBOSE=0
+                os.environ["TORCHDYNAMO_VERBOSE"] = "0"
                 self.llm = LLM(
                     model=model_name,
                 )
@@ -199,12 +201,14 @@ class LlamaTranslator:
                     translation = generated_text.split("\n")[0].strip()
                 else:
                     translation = generated_text.strip()
-                translations.append(translation if translation else None)
+                translations.append(translation.replace if translation else None)
             return translations
         else:
             # Sequential translation for non-vLLM mode
             translations = []
             for text in texts:
                 translation = await self.translate_text(text)
+                # Remove newlines from the translation
+                translation = translation.replace("\n", "")
                 translations.append(translation)
             return translations 

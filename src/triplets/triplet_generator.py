@@ -47,27 +47,25 @@ class CometKiwiEvaluator:
         Returns:
             List of lists of scores, one list per source text
         """
-        data = []
+        samples = []
         for src, trans_list in zip(src_texts, translations):
-            # Compare each translation against all others
-            for i, mt in enumerate(trans_list):
-                others = trans_list[:i] + trans_list[i+1:]  # All translations except current one
-                for ref in others:
-                    data.append({
-                        "src": src,
-                        "mt": mt,
-                        "ref": ref
-                    })
+            for mt in trans_list:
+                samples.append({
+                    "src": src,
+                    "mt": mt
+                })
         
-        scores = self.model.predict(data, batch_size=len(data), progress_bar=False)
+        prediction = self.model.predict(samples, batch_size=len(samples), progress_bar=False)
+        scores = prediction['scores']
         
-        # Reshape scores into groups per translation
+        # Reshape scores back into original batch format
+        batch_scores = []
         translations_per_source = len(translations[0])
-        comparisons_per_translation = translations_per_source - 1
-        return [
-            scores[i:i + comparisons_per_translation]
-            for i in range(0, len(scores), comparisons_per_translation)
-        ]
+        for i in range(0, len(scores), translations_per_source):
+            batch_scores.append([float(score) for score in scores[i:i + translations_per_source]])
+        
+        return batch_scores
+
 class TripletGenerator:
     """Class for generating training triplets from translation pairs."""
     
@@ -90,28 +88,18 @@ class TripletGenerator:
             batch = pairs[i:i + self.batch_size]
             
             src_texts = [pair.source for pair in batch]
-            translations = [[pair.reference] + pair.machine_translations for pair in batch]
+            all_translations = []
+            for pair in batch:
+                translations = [pair.reference] + pair.machine_translations
+                all_translations.append(translations)
             
-            scores = self.evaluator.evaluate_batch(src_texts, translations)
+            # Get quality scores
+            batch_scores = self.evaluator.evaluate_batch(src_texts, all_translations)
             
-            for pair, score_group in zip(batch, scores):
-                if isinstance(score_group[0], list):
-                    score_group = [s[0] if isinstance(s, list) else s for s in score_group]
-                    
-                num_translations = len(pair.machine_translations) + 1
-                avg_scores = []
-                for i in range(num_translations):
-                    translation_scores = score_group[i * (num_translations - 1):(i + 1) * (num_translations - 1)]
-                    # Add safety check for empty scores
-                    if translation_scores:
-                        avg_scores.append(sum(translation_scores) / len(translation_scores))
-                    else:
-                        print(f"Warning: Empty translation scores for index {i}")
-                        avg_scores.append(0.0)  # or some other default value
-                
-                # First score is reference, rest are machine translations
-                ref_score = avg_scores[0]
-                mt_scores = avg_scores[1:]
+            # Create triplets based on scores
+            for pair, score_list in zip(batch, batch_scores):
+                ref_score = float(score_list[0])  # First score is for reference
+                mt_scores = [float(score) for score in score_list[1:]]  # Rest are machine translations
                 
                 # Find best machine translation
                 best_mt_score = max(mt_scores)
@@ -131,9 +119,6 @@ class TripletGenerator:
                     )
                 triplets.append(triplet)
 
-                print(f"Number of translations: {num_translations}")
-                print(f"Score group length: {len(score_group)}")
-                print(f"Machine translations: {len(pair.machine_translations)}")
         
         return triplets
 
