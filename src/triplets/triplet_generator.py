@@ -35,17 +35,16 @@ class CometKiwiEvaluator:
     def evaluate_batch(
         self,
         src_texts: List[str],
-        translations: List[List[str]]  # Changed to accept list of translation lists
+        translations: List[List[str]]
     ) -> List[List[float]]:
-        """Evaluate a batch of translations using COMET.
+        """Evaluate a batch of translations using COMET-KIWI.
         
         Args:
             src_texts: List of source texts
-            translations: List of lists where each inner list contains all translations for one source
-                (reference + machine translations)
-        
+            translations: List of lists of translations to evaluate
+            
         Returns:
-            List of lists of scores, one list per source text
+            List of scores for each translation
         """
         samples = []
         for src, trans_list in zip(src_texts, translations):
@@ -78,15 +77,41 @@ class TripletGenerator:
         """
         self.evaluator = evaluator
         self.batch_size = batch_size
+        self.stats = {
+            'reference': {'chosen': 0, 'rejected': 0},
+            'mt': {}  # Will be populated with stats for each MT system
+        }
     
+    def get_stats(self) -> Dict:
+        """Get statistics about how often each translation was chosen/rejected.
+        
+        Returns:
+            Dictionary containing statistics for reference and each MT system
+        """
+        return self.stats
 
     def generate_triplets(self, pairs: List[TranslationPair]) -> List[Triplet]:
-        """Generate triplets from translation pairs based on COMET scores."""
+        """Generate triplets from translation pairs based on COMET-KIWI scores.
+        
+        Args:
+            pairs: List of translation pairs
+            
+        Returns:
+            List of generated triplets
+        """
         triplets = []
         
+        # Reset stats
+        self.stats = {
+            'reference': {'chosen': 0, 'rejected': 0},
+            'mt': {f'mt_{i}': {'chosen': 0, 'rejected': 0} for i in range(len(pairs[0].machine_translations))}
+        }
+        
+        # Process pairs in batches
         for i in tqdm(range(0, len(pairs), self.batch_size), desc="Generating triplets"):
             batch = pairs[i:i + self.batch_size]
             
+            # Prepare batch data
             src_texts = [pair.source for pair in batch]
             all_translations = []
             for pair in batch:
@@ -101,27 +126,37 @@ class TripletGenerator:
                 ref_score = float(score_list[0])  # First score is for reference
                 mt_scores = [float(score) for score in score_list[1:]]  # Rest are machine translations
                 
-                # Find best machine translation
-                best_mt_score = max(mt_scores)
-                best_mt_index = mt_scores.index(best_mt_score)
+                # Get indices of top 2 machine translations
+                mt_indices = sorted(range(len(mt_scores)), key=lambda k: mt_scores[k], reverse=True)
+                best_mt_score = mt_scores[mt_indices[0]]
                 
                 if best_mt_score > ref_score:
-                    triplet = Triplet(
-                        prompt=pair.source,
-                        chosen=pair.machine_translations[best_mt_index],
-                        rejected=pair.reference
-                    )
+                    # If best MT is better than reference
+                    chosen = pair.machine_translations[mt_indices[0]]
+                    self.stats['mt'][f'mt_{mt_indices[0]}']['chosen'] += 1
+                    
+                    if len(mt_indices) > 1 and mt_scores[mt_indices[1]] > ref_score:
+                        # If second best MT is also better than reference
+                        rejected = pair.machine_translations[mt_indices[1]]
+                        self.stats['mt'][f'mt_{mt_indices[1]}']['rejected'] += 1
+                    else:
+                        rejected = pair.reference
+                        self.stats['reference']['rejected'] += 1
                 else:
-                    triplet = Triplet(
-                        prompt=pair.source,
-                        chosen=pair.reference,
-                        rejected=pair.machine_translations[best_mt_index]
-                    )
+                    # If reference is better than all MTs
+                    chosen = pair.reference
+                    self.stats['reference']['chosen'] += 1
+                    rejected = pair.machine_translations[mt_indices[0]]  # Best MT becomes rejected
+                    self.stats['mt'][f'mt_{mt_indices[0]}']['rejected'] += 1
+                
+                triplet = Triplet(
+                    prompt=pair.source,
+                    chosen=chosen,
+                    rejected=rejected
+                )
                 triplets.append(triplet)
-
         
         return triplets
-
 
 def load_translation_dataset(
     en_file: str,
