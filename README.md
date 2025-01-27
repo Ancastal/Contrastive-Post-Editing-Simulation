@@ -115,15 +115,9 @@ The triplets are saved in JSONL format with the following structure:
 }
 ```
 
-The quality comparison between translations is determined by COMET-KIWI scores and works as follows:
-1. If the best machine translation has a higher score than the reference:
-   - It becomes the "chosen" translation
-   - If the second-best machine translation also has a higher score than the reference:
-     - It becomes the "rejected" translation
-   - Otherwise, the reference becomes the "rejected" translation
-2. If no machine translation is better than the reference:
-   - The reference becomes the "chosen" translation
-   - The best machine translation becomes the "rejected" translation
+The system also tracks statistics about how often each translation was chosen/rejected.
+
+The quality comparison between translations is determined by COMET-KIWI scores and uses as "chosen" the best translation and as "rejected" the second best translation.
 
 ## CPO Training
 
@@ -152,7 +146,8 @@ python -m src.run_cpo \
     --use_peft \
     --lora_r 16 \
     --lora_alpha 16 \
-    --logging_first_step
+    --logging_first_step \
+    --validation_split_percentage 0.1
 ```
 
 ### Command Line Arguments
@@ -169,7 +164,7 @@ python -m src.run_cpo \
 - `--lora_dropout`: LoRA dropout (default: 0.05)
 - `--lora_target_modules`: Comma-separated list of target modules for LoRA (default: "q_proj,v_proj")
 - `--trust_remote_code`: Whether to trust remote code when loading the model (default: False)
-
+- `--validation_split_percentage`: Percentage of the dataset to use for validation (default: 0.1)
 #### Training Arguments
 - `--per_device_train_batch_size`: Batch size per device (default: 4)
 - `--max_steps`: Maximum number of training steps (default: 1000)
