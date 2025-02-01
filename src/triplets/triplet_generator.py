@@ -90,11 +90,12 @@ class TripletGenerator:
         """
         return self.stats
 
-    def generate_triplets(self, pairs: List[TranslationPair]) -> List[Triplet]:
+    def generate_triplets(self, pairs: List[TranslationPair], prefer_reference: bool = False) -> List[Triplet]:
         """Generate triplets from translation pairs based on COMET-KIWI scores.
         
         Args:
             pairs: List of translation pairs
+            prefer_reference: If True, always select reference as chosen translation
             
         Returns:
             List of generated triplets
@@ -126,28 +127,36 @@ class TripletGenerator:
                 ref_score = float(score_list[0])  # First score is for reference
                 mt_scores = [float(score) for score in score_list[1:]]  # Rest are machine translations
                 
-                # Get indices of top 2 machine translations
+                # Get indices of top machine translations
                 mt_indices = sorted(range(len(mt_scores)), key=lambda k: mt_scores[k], reverse=True)
                 best_mt_score = mt_scores[mt_indices[0]]
                 
-                if best_mt_score > ref_score:
-                    # If best MT is better than reference
-                    chosen = pair.machine_translations[mt_indices[0]]
-                    self.stats['mt'][f'mt_{mt_indices[0]}']['chosen'] += 1
-                    
-                    if len(mt_indices) > 1 and mt_scores[mt_indices[1]] > ref_score:
-                        # If second best MT is also better than reference
-                        rejected = pair.machine_translations[mt_indices[1]]
-                        self.stats['mt'][f'mt_{mt_indices[1]}']['rejected'] += 1
-                    else:
-                        rejected = pair.reference
-                        self.stats['reference']['rejected'] += 1
-                else:
-                    # If reference is better than all MTs
+                if prefer_reference:
+                    # Always use reference as chosen
                     chosen = pair.reference
                     self.stats['reference']['chosen'] += 1
-                    rejected = pair.machine_translations[mt_indices[0]]  # Best MT becomes rejected
+                    # Use highest scored MT as rejected
+                    rejected = pair.machine_translations[mt_indices[0]]
                     self.stats['mt'][f'mt_{mt_indices[0]}']['rejected'] += 1
+                else:
+                    if best_mt_score > ref_score:
+                        # If best MT is better than reference
+                        chosen = pair.machine_translations[mt_indices[0]]
+                        self.stats['mt'][f'mt_{mt_indices[0]}']['chosen'] += 1
+                        
+                        if len(mt_indices) > 1 and mt_scores[mt_indices[1]] > ref_score:
+                            # If second best MT is also better than reference
+                            rejected = pair.machine_translations[mt_indices[1]]
+                            self.stats['mt'][f'mt_{mt_indices[1]}']['rejected'] += 1
+                        else:
+                            rejected = pair.reference
+                            self.stats['reference']['rejected'] += 1
+                    else:
+                        # If reference is better than all MTs
+                        chosen = pair.reference
+                        self.stats['reference']['chosen'] += 1
+                        rejected = pair.machine_translations[mt_indices[0]]  # Best MT becomes rejected
+                        self.stats['mt'][f'mt_{mt_indices[0]}']['rejected'] += 1
                 
                 triplet = Triplet(
                     prompt=pair.source,

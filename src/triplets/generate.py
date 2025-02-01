@@ -32,7 +32,8 @@ def generate_and_save_triplets(
     ko_mt_files: List[str],
     output_file: str,
     max_samples: Optional[int] = None,
-    batch_size: int = 8
+    batch_size: int = 8,
+    prefer_reference: bool = False
 ):
     """Generate triplets and save them to a file.
     
@@ -43,6 +44,7 @@ def generate_and_save_triplets(
         output_file: Path to save the generated triplets
         max_samples: Maximum number of samples to process
         batch_size: Batch size for processing
+        prefer_reference: If True, always select reference as chosen translation
     """
     # Create output directory if it doesn't exist
     output_dir = os.path.dirname(output_file)
@@ -55,7 +57,7 @@ def generate_and_save_triplets(
     # Initialize models and generate triplets
     evaluator = CometKiwiEvaluator()
     generator = TripletGenerator(evaluator, batch_size)
-    triplets = generator.generate_triplets(pairs)
+    triplets = generator.generate_triplets(pairs, prefer_reference=prefer_reference)
     
     # Save triplets
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -97,6 +99,8 @@ def main():
                       help='Batch size for COMET-KIWI evaluation')
     parser.add_argument('--max_samples', type=int, default=None,
                       help='Maximum number of samples to process')
+    parser.add_argument('--prefer_reference', action='store_true',
+                      help='Always prefer reference translation as chosen')
     
     args = parser.parse_args()
     
@@ -131,7 +135,7 @@ def main():
     
     # Generate triplets
     print("Generating triplets...")
-    triplets = generator.generate_triplets(pairs)
+    triplets = generator.generate_triplets(pairs, prefer_reference=args.prefer_reference)
     
     # Save triplets
     print(f"Saving triplets to {args.output}...")
@@ -141,7 +145,8 @@ def main():
         args.ko_mt_files,
         args.output,
         args.max_samples,
-        args.batch_size
+        args.batch_size,
+        args.prefer_reference
     )
     print("Done!")
 
