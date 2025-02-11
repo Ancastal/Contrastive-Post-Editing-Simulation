@@ -22,7 +22,9 @@ OPENAI_API_KEY=your_api_key_here
 
 The translation system supports two main models:
 - GPT-4 (via OpenAI API)
-- Llama (various sizes: 1B, 7B, 13B, 70B)
+- Llama (any checkpoint from Hugging Face)
+
+### Basic Usage
 
 1. Using GPT-4 (default):
 ```bash
@@ -46,18 +48,9 @@ python -m src.translation.translate \
     --temperature 0.3
 ```
 
-3. Using custom Llama model:
-```bash
-python -m src.translation.translate \
-    --model llama \
-    --llama_model custom \
-    --custom_llama_path /path/to/your/model \
-    --input assets/train/train_en-ko.en \
-    --output assets/train/train_en-ko.llama.ko
-```
-
 ### Command Line Arguments
 
+#### Basic Arguments
 - `--input`: Path to input English file (default: 'assets/train/train_en-ko.en')
 - `--output`: Path to output Korean translations file
 - `--batch_size`: Batch size for concurrent API calls (default: 5)
@@ -67,25 +60,37 @@ python -m src.translation.translate \
 - `--model`: Model to use for translation ('gpt4' or 'llama')
 - `--llama_model`: Llama model to use (only when --model=llama)
 
+#### vLLM Arguments (**Experimental**)
+- `--use_vllm`: Use [vLLM](https://vllm.ai/) for faster batched inference (only for Llama)
+- `--use_ngram_spec`: Enable [n-gram speculative decoding](https://docs.vllm.ai/en/latest/features/spec_decode.html) (only when using vLLM)
+- `--few_shots`: Enable [few-shot prompting](https://arxiv.org/abs/2005.14165) with similar examples
+
+#### Few-Shot Arguments (**Experimental**)
+- `--few_shots`: Enable few-shot prompting with similar examples
+- `--few_shot_examples`: Path to source texts file for few-shot examples
+- `--few_shot_targets`: Path to target texts file for few-shot examples
+- `--num_shots`: Number of few-shot examples to use per query (default: 3)
+
 #### Notes
 
 - The system automatically tracks progress in `translation_progress.json`. If interrupted, you can resume translation using the `--resume` flag.
 - Failed translations are automatically retried
 - Progress is saved after each batch
 - Interruption-safe with automatic progress saving
+- Few-shot examples are cached in `cache/few_shots/` for faster subsequent runs
 
 ## Triplet Generation
 
-The system includes functionality to generate training triplets from translation pairs using COMET-KIWI for quality evaluation.
+The system includes functionality to generate training triplets from translation pairs using COMET-KIWI for quality evaluation. It supports comparing multiple machine translations against the reference translation.
 
 ### Basic Usage
 
-Generate triplets from translation pairs:
+Generate triplets from translation pairs with multiple machine translations:
 ```bash
 python -m src.triplets.generate \
     --en_file assets/train/train_en-ko.en \
     --ko_file assets/train/train_en-ko.ko \
-    --ko_gpt4_file assets/train/train_en-ko.gpt4.ko \
+    --ko_mt_files assets/train/train_en-ko.gpt4.ko assets/train/train_en-ko.llama.ko \
     --output train_en-ko_triplets.jsonl \
     --batch_size 8
 ```
@@ -94,7 +99,7 @@ python -m src.triplets.generate \
 
 - `--en_file`: Path to English source file (default: 'assets/train/train_en-ko.en')
 - `--ko_file`: Path to Korean reference translation file (default: 'assets/train/train_en-ko.ko')
-- `--ko_gpt4_file`: Path to Korean GPT-4 translation file (required)
+- `--ko_mt_files`: Paths to Korean machine translation files (required, accepts multiple files)
 - `--output`: Output file path for the generated triplets (default: 'train_en-ko_triplets.jsonl')
 - `--batch_size`: Batch size for COMET-KIWI evaluation (default: 8)
 - `--max_samples`: Maximum number of samples to process (optional)
@@ -110,7 +115,9 @@ The triplets are saved in JSONL format with the following structure:
 }
 ```
 
-The quality comparison between translations is determined by COMET-KIWI scores, where the translation with the higher score becomes the "chosen" translation and the lower score becomes the "rejected" translation.
+The system also tracks statistics about how often each translation was chosen/rejected.
+
+The quality comparison between translations is determined by COMET-KIWI scores and uses as "chosen" the best translation and as "rejected" the second best translation.
 
 ## CPO Training
 
@@ -139,7 +146,8 @@ python -m src.run_cpo \
     --use_peft \
     --lora_r 16 \
     --lora_alpha 16 \
-    --logging_first_step
+    --logging_first_step \
+    --validation_split_percentage 0.1
 ```
 
 ### Command Line Arguments
@@ -156,7 +164,7 @@ python -m src.run_cpo \
 - `--lora_dropout`: LoRA dropout (default: 0.05)
 - `--lora_target_modules`: Comma-separated list of target modules for LoRA (default: "q_proj,v_proj")
 - `--trust_remote_code`: Whether to trust remote code when loading the model (default: False)
-
+- `--validation_split_percentage`: Percentage of the dataset to use for validation (default: 0.1)
 #### Training Arguments
 - `--per_device_train_batch_size`: Batch size per device (default: 4)
 - `--max_steps`: Maximum number of training steps (default: 1000)

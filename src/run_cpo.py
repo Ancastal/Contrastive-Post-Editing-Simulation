@@ -77,13 +77,19 @@ class ScriptArguments:
         default=False,
         metadata={"help": "Whether to trust remote code when loading the model"}
     )
+    validation_split_percentage: float = field(
+        default=0.1,
+        metadata={"help": "Percentage of the dataset to use for validation"}
+    )
 
 
-def load_jsonl_dataset(file_path):
+def load_jsonl_dataset(file_path, validation_split_percentage=0.1):
     """Load a JSONL file into a Hugging Face dataset."""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = [json.loads(line) for line in f]
-    return Dataset.from_list(data)
+    dataset = Dataset.from_list(data)
+    dataset = dataset.train_test_split(test_size=validation_split_percentage)
+    return dataset
 
 
 if __name__ == "__main__":
@@ -134,8 +140,9 @@ if __name__ == "__main__":
     ################
     # Dataset
     ################
-    dataset = load_jsonl_dataset(script_args.dataset_path)
-    train_dataset = dataset
+    dataset = load_jsonl_dataset(script_args.dataset_path, script_args.validation_split_percentage)
+    train_dataset = dataset['train']
+    eval_dataset = dataset['test']
     if tokenizer.chat_template is None:
         tokenizer.chat_template = SIMPLE_CHAT_TEMPLATE
 
@@ -161,10 +168,12 @@ if __name__ == "__main__":
         model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=None,  # No evaluation dataset in this case
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         peft_config=peft_config,
     )
+    
+    print(f"Dataset splits: train={len(train_dataset)}, validation={len(eval_dataset)}")
 
     # train and save the model
     trainer.train()

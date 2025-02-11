@@ -3,7 +3,7 @@
 import os
 import json
 import asyncio
-from typing import List, Dict, Optional, Tuple, Protocol
+from typing import List, Dict, Optional, Tuple, Protocol, Callable
 from tqdm.asyncio import tqdm_asyncio
 import aiofiles
 
@@ -55,21 +55,24 @@ class TranslationManager:
         self,
         texts: List[str],
         start_idx: int = 0,
-        existing_translations: Optional[List[str]] = None
+        existing_translations: Optional[List[str]] = None,
+        progress_callback: Optional[Callable] = None
     ) -> Tuple[List[str], List[int]]:
-        """Translate texts with batching and progress tracking."""
+        """Translate texts with batching and progress tracking.
+        
+        Args:
+            texts: List of texts to translate
+            start_idx: Starting index for translation
+            existing_translations: List of existing translations to resume from
+            progress_callback: Optional callback function to update progress
+        """
         translations = existing_translations if existing_translations else []
         failed_indices = []
         
         try:
             batches = [texts[i:i + self.batch_size] for i in range(0, len(texts), self.batch_size)]
             
-            async for batch_idx, batch in tqdm_asyncio(
-                enumerate(batches),
-                desc="Translating batches",
-                total=len(batches),
-                initial=start_idx // self.batch_size
-            ):
+            for batch_idx, batch in enumerate(batches):
                 batch_translations = await self.translator.translate_batch(batch)
                 
                 for idx, translation in enumerate(batch_translations):
@@ -79,6 +82,9 @@ class TranslationManager:
                         translations.append("")
                     else:
                         translations.append(translation)
+                    
+                    if progress_callback:
+                        progress_callback()
                 
                 await self.save_progress(
                     start_idx + len(translations),
